@@ -34,6 +34,7 @@ const (
 	cgroupRoot = "/sys/fs/cgroup"
 )
 
+// controller是一种方法，用于设置特定的资源
 var controllers = map[string]controller{
 	"blkio":    &blockIO{},
 	"cpu":      &cpu{},
@@ -44,6 +45,7 @@ var controllers = map[string]controller{
 
 	// These controllers either don't have anything in the OCI spec or is
 	// irrevalant for a sandbox, e.g. pids.
+	// 以下这些controller在OCI中没有提及或者和一个sandbox无关
 	"devices":    &noop{},
 	"freezer":    &noop{},
 	"perf_event": &noop{},
@@ -166,6 +168,8 @@ type Cgroup struct {
 
 // New creates a new Cgroup instance if the spec includes a cgroup path.
 // Otherwise it returns nil and false.
+// New创建一个新的Cgroup实例，如果spec包含了一个cgroup path
+// 否则返回nil和false
 func New(spec *specs.Spec) (*Cgroup, bool) {
 	if spec.Linux == nil || spec.Linux.CgroupsPath == "" {
 		return nil, false
@@ -176,10 +180,14 @@ func New(spec *specs.Spec) (*Cgroup, bool) {
 // Install creates and configures cgroups according to 'res'. If cgroup path
 // already exists, it means that the caller has already provided a
 // pre-configured cgroups, and 'res' is ignored.
+// Install根据'res'创建并且配置cgroups，如果cgroup路径已经存在，这意味着调用者已经提供了
+// 一个事先配置的cgroups，则'res'被忽略
 func (c *Cgroup) Install(res *specs.LinuxResources) error {
 	if _, err := os.Stat(c.makePath("memory")); err == nil {
 		// If cgroup has already been created; it has been setup by caller. Don't
 		// make any changes to configuration, just join when sandbox/gofer starts.
+		// 如果cgroup已经被创建了，说明它已经由调用者设置了
+		// 不要对配置做任何修改，在sandbox/gofer启动的时候加入即可
 		log.Debugf("Using pre-created cgroup %q", c.Name)
 		return nil
 	}
@@ -191,11 +199,13 @@ func (c *Cgroup) Install(res *specs.LinuxResources) error {
 	defer clean.Clean()
 
 	for key, ctrl := range controllers {
+		// 创建controller资源对应的路径
 		path := c.makePath(key)
 		if err := os.MkdirAll(path, 0755); err != nil {
 			return err
 		}
 		if res != nil {
+			// 根据res对相应的资源进行配置
 			if err := ctrl.set(res, path); err != nil {
 				return err
 			}
@@ -222,6 +232,7 @@ func (c *Cgroup) Uninstall() error {
 }
 
 // Add adds given process to all controllers.
+// Add将给定的进程加入到所有的controllers中
 func (c *Cgroup) Add(pid int) error {
 	for key := range controllers {
 		if err := setValue(c.makePath(key), "cgroup.procs", strconv.Itoa(pid)); err != nil {
@@ -252,6 +263,7 @@ func (c *Cgroup) MemoryLimit() (uint64, error) {
 }
 
 func (c *Cgroup) makePath(controllerName string) string {
+	// cgroupRoot为"/sys/fs/cgroup"
 	return filepath.Join(cgroupRoot, controllerName, c.Name)
 }
 

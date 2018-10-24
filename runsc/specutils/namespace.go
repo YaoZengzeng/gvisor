@@ -53,6 +53,7 @@ func nsCloneFlag(nst specs.LinuxNamespaceType) uintptr {
 
 // nsPath returns the path of the namespace for the current process and the
 // given namespace.
+// nsPath返回当前进程的给定namespace的路径
 func nsPath(nst specs.LinuxNamespaceType) string {
 	base := "/proc/self/ns"
 	switch nst {
@@ -78,6 +79,7 @@ func nsPath(nst specs.LinuxNamespaceType) string {
 // GetNS returns true and the namespace with the given type from the slice of
 // namespaces in the spec.  It returns false if the slice does not contain a
 // namespace with the type.
+// GetNS返回true，如果在spec中有和参数中类型相同的namespace
 func GetNS(nst specs.LinuxNamespaceType, s *specs.Spec) (specs.LinuxNamespace, bool) {
 	if s.Linux == nil {
 		return specs.LinuxNamespace{}, false
@@ -92,6 +94,7 @@ func GetNS(nst specs.LinuxNamespaceType, s *specs.Spec) (specs.LinuxNamespace, b
 
 // FilterNS returns a slice of namespaces from the spec with types that match
 // those in the `filter` slice.
+// FilterNS返回类型和filter中的指定匹配的namespaces数组
 func FilterNS(filter []specs.LinuxNamespaceType, s *specs.Spec) []specs.LinuxNamespace {
 	if s.Linux == nil {
 		return nil
@@ -107,6 +110,7 @@ func FilterNS(filter []specs.LinuxNamespaceType, s *specs.Spec) []specs.LinuxNam
 
 // SetNS sets the namespace of the given type.  It must be called with
 // OSThreadLocked.
+// SetNS设置给定类型的namespace，它必须伴随OSThreadLocked被调用
 func SetNS(fd, nsType uintptr) error {
 	if _, _, err := syscall.RawSyscall(unix.SYS_SETNS, fd, nsType, 0); err != 0 {
 		return err
@@ -116,10 +120,12 @@ func SetNS(fd, nsType uintptr) error {
 
 // ApplyNS applies the namespace on the current thread and returns a function
 // that will restore the namespace to the original value.
+// ApplyNS在当前的进程应用namespace并且返回一个函数用于将namespace恢复到original value
 //
 // Preconditions: Must be called with os thread locked.
 func ApplyNS(ns specs.LinuxNamespace) (func(), error) {
 	log.Infof("applying namespace %v at path %q", ns.Type, ns.Path)
+	// 打开ns路径
 	newNS, err := os.Open(ns.Path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening %q: %v", ns.Path, err)
@@ -127,6 +133,7 @@ func ApplyNS(ns specs.LinuxNamespace) (func(), error) {
 	defer newNS.Close()
 
 	// Store current netns to restore back after child is started.
+	// 保存当前的netns，从而在子进程启动之后恢复
 	curPath := nsPath(ns.Type)
 	oldNS, err := os.Open(curPath)
 	if err != nil {
@@ -134,6 +141,7 @@ func ApplyNS(ns specs.LinuxNamespace) (func(), error) {
 	}
 
 	// Set netns to the one requested and setup function to restore it back.
+	// 设置指定的ns并且设置函数用于恢复它
 	flag := nsCloneFlag(ns.Type)
 	if err := SetNS(newNS.Fd(), flag); err != nil {
 		oldNS.Close()
@@ -163,11 +171,13 @@ func StartInNS(cmd *exec.Cmd, nss []specs.LinuxNamespace) error {
 	for _, ns := range nss {
 		if ns.Path == "" {
 			// No path.  Just set a flag to create a new namespace.
+			// 如果没有路径，则设置flag用于创建一个新的namespace
 			cmd.SysProcAttr.Cloneflags |= nsCloneFlag(ns.Type)
 			continue
 		}
 		// Join the given namespace, and restore the current namespace
 		// before exiting.
+		// 加入给定的namespace，并且在退出前，restore当前的namespace
 		restoreNS, err := ApplyNS(ns)
 		if err != nil {
 			return err
@@ -179,6 +189,7 @@ func StartInNS(cmd *exec.Cmd, nss []specs.LinuxNamespace) error {
 }
 
 // SetUIDGIDMappings sets the given uid/gid mappings from the spec on the cmd.
+// SetUIDGIDMappings将从spec中获取的给定uid/gid mappings设置到cmd
 func SetUIDGIDMappings(cmd *exec.Cmd, s *specs.Spec) {
 	if s.Linux == nil {
 		return

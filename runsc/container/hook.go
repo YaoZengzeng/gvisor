@@ -50,6 +50,7 @@ func executeHooksBestEffort(hooks []specs.Hook, s specs.State) {
 }
 
 // executeHooks executes hooks until the first one fails or they all execute.
+// executeHooks执行hooks直到第一个失败或者他们所有都执行
 func executeHooks(hooks []specs.Hook, s specs.State) error {
 	for _, h := range hooks {
 		if err := executeHook(h, s); err != nil {

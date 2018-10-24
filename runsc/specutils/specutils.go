@@ -100,6 +100,8 @@ func ValidateSpec(spec *specs.Spec) error {
 	// Two annotations are use by containerd to support multi-container pods.
 	//   "io.kubernetes.cri.container-type"
 	//   "io.kubernetes.cri.sandbox-id"
+	// containerd中有两个annotations用于支持multi-container pods
+	// "io.kubernetes.cri.container-type"和"io.kubernetes.cri.sandbox-id"
 	containerType, hasContainerType := spec.Annotations[ContainerdContainerTypeAnnotation]
 	_, hasSandboxID := spec.Annotations[ContainerdSandboxIDAnnotation]
 	switch {
@@ -144,6 +146,8 @@ func ReadSpec(bundleDir string) (*specs.Spec, error) {
 
 // ReadSpecFromFile reads an OCI runtime spec from the given File, and
 // normalizes all relative paths into absolute by prepending the bundle dir.
+// ReadSpecFromFile从给定文件读取OCI runtime spec，再将所有的相对路径根据bundle目录
+// 转换为绝对路径
 func ReadSpecFromFile(bundleDir string, specFile *os.File) (*specs.Spec, error) {
 	if _, err := specFile.Seek(0, os.SEEK_SET); err != nil {
 		return nil, fmt.Errorf("error seeking to beginning of file %q: %v", specFile.Name(), err)
@@ -247,6 +251,7 @@ func capsFromNames(names []string) (auth.CapabilitySet, error) {
 }
 
 // Is9PMount returns true if the given mount can be mounted as an external gofer.
+// Is9PMount返回true，如果给定的mount可以作为external gofer被挂载
 func Is9PMount(m specs.Mount) bool {
 	return m.Type == "bind" && m.Source != "" && IsSupportedDevMount(m)
 }
@@ -254,6 +259,8 @@ func Is9PMount(m specs.Mount) bool {
 // IsSupportedDevMount returns true if the mount is a supported /dev mount.
 // Only mount that does not conflict with runsc default /dev mount is
 // supported.
+// IsSupportedDevMount返回true，如果mount是一个支持的/dev mount
+// 只有和runsc默认的/dev mount不冲突的mount才是被支持的
 func IsSupportedDevMount(m specs.Mount) bool {
 	// These are devices exist inside sentry. See pkg/sentry/fs/dev/dev.go
 	var existingDevices = []string{
@@ -278,7 +285,9 @@ func IsSupportedDevMount(m specs.Mount) bool {
 
 // BinPath returns the real path to self, resolving symbolink links. This is done
 // to make the process name appears as 'runsc', instead of 'exe'.
+// BinPath返回"runsc"的绝对路径，并且解析软链接，从而让进程名为"runsc"而不是"exe"
 func BinPath() (string, error) {
+	// ExecPath为"/proc/self/exe"
 	binPath, err := filepath.EvalSymlinks(ExePath)
 	if err != nil {
 		return "", fmt.Errorf(`error resolving %q symlink: %v`, ExePath, err)

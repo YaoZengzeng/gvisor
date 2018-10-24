@@ -14,9 +14,11 @@
 
 /*
 Package server provides a basic control server interface.
+server包提供了一个基本的control server接口
 
 Note that no objects are registered by default. Users must provide their own
 implementations of the control interface.
+默认没有对象被注册，用户必须实现他们自己的control interface
 */
 package server
 
@@ -151,6 +153,8 @@ func Create(addr string) (*Server, error) {
 // CreateSocket creates a socket that can be used with control server,
 // but doesn't start control server.  'addr' must be a valid and unique
 // abstract socket name.  Returns socket's FD, -1 in case of error.
+// CreateSocket创建一个socket可以用于control server，但是并不启动control server
+// 'addr'必须是一个合法的以及独特的abstract socket name
 func CreateSocket(addr string) (int, error) {
 	socket, err := unet.Bind(addr, false)
 	if err != nil {

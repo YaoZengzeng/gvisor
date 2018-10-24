@@ -22,6 +22,7 @@ const (
 	// Created indicates "the runtime has finished the create operation and
 	// the container process has neither exited nor executed the
 	// user-specified program".
+	// Created表示“运行时已经结束了创建操作并且要么容器进程已经退出或者已经执行完用户指定的程序”
 	Created Status = iota
 
 	// Creating indicates "the container is being created".
@@ -33,6 +34,7 @@ const (
 
 	// Running indicates "the container process has executed the
 	// user-specified program but has not exited".
+	// 容器进程已经执行了用户指定的程序并且没有退出
 	Running
 
 	// Stopped indicates "the container process has exited".

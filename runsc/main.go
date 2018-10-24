@@ -14,6 +14,7 @@
 
 // Binary runsc is an implementation of the Open Container Initiative Runtime
 // that runs applications inside a sandbox.
+// 二进制文件runsc是OCI运行时的一种实现，能够在sandbox里面运行容器
 package main
 
 import (
@@ -43,6 +44,7 @@ var (
 
 	// These flags are unique to runsc, and are used to configure parts of the
 	// system that are not covered by the runtime spec.
+	// 下面的这些flags都是runsc独有的，用于配置那些runtime spec没有覆盖到的部分
 
 	// Debugging flags.
 	debugLog   = flag.String("debug-log", "", "additional location for logs. If it ends with '/', log files are created inside the directory with default names. The following variables are available: %TIMESTAMP%, %COMMAND%.")
@@ -59,6 +61,7 @@ var (
 	platform       = flag.String("platform", "ptrace", "specifies which platform to use: ptrace (default), kvm")
 	network        = flag.String("network", "sandbox", "specifies which network to use: sandbox (default), host, none. Using network inside the sandbox is more secure because it's isolated from the host network.")
 	fileAccess     = flag.String("file-access", "exclusive", "specifies which filesystem to use for the root mount: exclusive (default), shared. Volume mounts are always shared.")
+	// overlay表示对filesystem mounts用可写层进行封装，所有的修改都直接存储在sandbox的内存中
 	overlay        = flag.Bool("overlay", false, "wrap filesystem mounts with writable overlay. All modifications are stored in memory inside the sandbox.")
 	watchdogAction = flag.String("watchdog-action", "log", "sets what action the watchdog takes when triggered: log (default), panic.")
 	panicSignal    = flag.Int("panic-signal", -1, "register signal handling that panics. Usually set to SIGUSR2(12) to troubleshoot hangs. -1 disables it.")
@@ -73,6 +76,7 @@ func main() {
 	subcommands.Register(subcommands.FlagsCommand(), "")
 
 	// Register user-facing runsc commands.
+	// 注册面向用户的runsc命令
 	subcommands.Register(new(cmd.Checkpoint), "")
 	subcommands.Register(new(cmd.Create), "")
 	subcommands.Register(new(cmd.Delete), "")
@@ -219,6 +223,7 @@ func main() {
 	log.Infof("***************************")
 
 	// Call the subcommand and pass in the configuration.
+	// 调用子命令并且传递配置
 	var ws syscall.WaitStatus
 	subcmdCode := subcommands.Execute(context.Background(), conf, &ws)
 	if subcmdCode == subcommands.ExitSuccess {

@@ -43,11 +43,14 @@ import (
 const (
 	// metadataFilename is the name of the metadata file relative to the
 	// container root directory that holds sandbox metadata.
+	// metadataFilename是位于容器根目录的元数据文件的名字，用来存放sandbox的元数据
 	metadataFilename = "meta.json"
 
 	// metadataLockFilename is the name of a lock file in the container
 	// root directory that is used to prevent concurrent modifications to
 	// the container state and metadata.
+	// metadataLockFilename是位于容器根目录的一个lock file的名称
+	// 用于避免对于容器的状态和元数据的并行修改
 	metadataLockFilename = "meta.lock"
 )
 
@@ -63,16 +66,21 @@ func validateID(id string) error {
 
 // Container represents a containerized application. When running, the
 // container is associated with a single Sandbox.
+// Container代表一个容器化的应用，在运行的时候，容器总是和单个的Sandbox相关联
 //
 // Container metadata can be saved and loaded to disk. Within a root directory,
 // we maintain subdirectories for each container named with the container id.
 // The container metadata is stored as a json within the container directory
 // in a file named "meta.json". This metadata format is defined by us and is
 // not part of the OCI spec.
+// Container的元数据可以被存储并加载到磁盘中，在根目录中，我们为每个容器维护一个以它的id命名的子目录
+// 容器的元数据在容器目录内以json格式存储在一个名为"meta.json"的文件中，这个metadata的格式是我们自己
+// 定义的，而不是OCI标准的一部分
 //
 // Containers must write their metadata files after any change to their internal
 // states. The entire container directory is deleted when the container is
 // destroyed.
+// 当容器的任何内在状态发生改变时，容器必须将其写入它们的配置文件中，当容器被删除时，容器目录也应该被删除
 //
 // When the container is stopped, all processes that belong to the container
 // must be stopped before Destroy() returns. containerd makes roughly the
@@ -99,6 +107,7 @@ type Container struct {
 	BundleDir string `json:"bundleDir"`
 
 	// Root is the directory containing the container metadata file.
+	// Root是存储容器元数据的目录
 	Root string `json:"root"`
 
 	// CreatedAt is the time the container was created.
@@ -116,10 +125,12 @@ type Container struct {
 
 	// GoferPid is the PID of the gofer running along side the sandbox. May
 	// be 0 if the gofer has been killed.
+	// GoferPid是在sandbox旁边运行的gofer的PID，如果gopher已经被kill掉的话，可能为0
 	GoferPid int `json:"goferPid"`
 
 	// Sandbox is the sandbox this container is running in. It's set when the
 	// container is created and reset when the sandbox is destroyed.
+	// Sandbox是容器正在运行的sandbox，它在容器被创建时设置并且在sandbox被摧毁时重置
 	Sandbox *sandbox.Sandbox `json:"sandbox"`
 }
 
@@ -127,6 +138,7 @@ type Container struct {
 // abbreviation of the full container id, in which case Load loads the
 // container to which id unambiguously refers to.
 // Returns ErrNotExist if container doesn't exist.
+// Load用给定的id从metadata file中加载一个容器，id可能是一个完整的容器id的缩写
 func Load(rootDir, id string) (*Container, error) {
 	log.Debugf("Load container %q %q", rootDir, id)
 	if err := validateID(id); err != nil {
@@ -141,6 +153,7 @@ func Load(rootDir, id string) (*Container, error) {
 
 	// Lock the container metadata to prevent other runsc instances from
 	// writing to it while we are reading it.
+	// 将container的metadata锁住从而避免其他runsc容器实例在我们读取它的时候写入
 	unlock, err := lockContainerMetadata(cRoot)
 	if err != nil {
 		return nil, err
@@ -164,6 +177,7 @@ func Load(rootDir, id string) (*Container, error) {
 
 	// If the status is "Running" or "Created", check that the sandbox
 	// process still exists, and set it to Stopped if it does not.
+	// 如果状态为"Running"或者"Created"，检查sandbox进程依然存在，并且设置为Stopped，如果不存在的话
 	//
 	// This is inherently racey.
 	if c.Status == Running || c.Status == Created {
@@ -185,6 +199,7 @@ func Load(rootDir, id string) (*Container, error) {
 
 func findContainerRoot(rootDir, partialID string) (string, error) {
 	// Check whether the id fully specifies an existing container.
+	// 首先检查id是否完整匹配一个已经存在的容器
 	cRoot := filepath.Join(rootDir, partialID)
 	if _, err := os.Stat(cRoot); err == nil {
 		return cRoot, nil
@@ -193,6 +208,7 @@ func findContainerRoot(rootDir, partialID string) (string, error) {
 	// Now see whether id could be an abbreviation of exactly 1 of the
 	// container ids. If id is ambigious (it could match more than 1
 	// container), it is an error.
+	// 再查看id是否是一个已经存在的容器id的缩写
 	cRoot = ""
 	ids, err := List(rootDir)
 	if err != nil {
@@ -230,6 +246,8 @@ func List(rootDir string) ([]string, error) {
 // Create creates the container in a new Sandbox process, unless the metadata
 // indicates that an existing Sandbox should be used. The caller must call
 // Destroy() on the container.
+// Create在一个新的Sandbox process中创建container，除非元数据中表示应该使用一个已经存在的Sandbox
+// 调用者必须对容器调用Destroy()
 func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSocket, pidFile, userLog string) (*Container, error) {
 	log.Debugf("Create container %q in root dir: %s", id, conf.RootDir)
 	if err := validateID(id); err != nil {
@@ -238,6 +256,7 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 
 	// Lock the container metadata file to prevent concurrent creations of
 	// containers with the same id.
+	// 锁住容器的元数据文件，从而防止并发创建有着相同id的容器
 	containerRoot := filepath.Join(conf.RootDir, id)
 	unlock, err := lockContainerMetadata(containerRoot)
 	if err != nil {
@@ -259,6 +278,7 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 		ConsoleSocket: consoleSocket,
 		BundleDir:     bundleDir,
 		Root:          containerRoot,
+		// 将容器的状态设置为Creating
 		Status:        Creating,
 		Owner:         os.Getenv("USER"),
 	}
@@ -269,8 +289,11 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 	// started in an existing sandbox, we must do so. The metadata will
 	// indicate the ID of the sandbox, which is the same as the ID of the
 	// init container in the sandbox.
+	// 如果元数据中的annotations表示该容器应该在一个已经存在的sandbox内启动，则我们必须这样做
+	// 元数据会说明sandbox的ID，它和sandbox的init container的ID相同
 	if specutils.ShouldCreateSandbox(spec) {
 		log.Debugf("Creating new sandbox for container %q", id)
+		// 创建gopher进程
 		ioFiles, err := c.createGoferProcess(spec, conf, bundleDir)
 		if err != nil {
 			return nil, err
@@ -278,10 +301,12 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 
 		// Start a new sandbox for this container. Any errors after this point
 		// must destroy the container.
+		// 为本容器启动一个新的sandbox，在此之后的任何错误都必须摧毁容器
 		c.Sandbox, err = sandbox.Create(id, spec, conf, bundleDir, consoleSocket, userLog, ioFiles)
 		if err != nil {
 			return nil, err
 		}
+		// 将gopher进程加入sandbox的cgroup
 		if err := c.Sandbox.AddGoferToCgroup(c.GoferPid); err != nil {
 			return nil, err
 		}
@@ -301,6 +326,7 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 		log.Debugf("Creating new container %q in sandbox %q", c.ID, sbid)
 
 		// Find the sandbox associated with this ID.
+		// 找到和这个ID相关的sandbox
 		sb, err := Load(conf.RootDir, sbid)
 		if err != nil {
 			return nil, err
@@ -316,6 +342,8 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 
 	// Write the PID file. Containerd considers the create complete after
 	// this file is created, so it must be the last thing we do.
+	// 写入PID文件，Containerd会在该文件被创建后认为容器创建完成
+	// 因此这是最后一件我们必须要做的事
 	if pidFile != "" {
 		if err := ioutil.WriteFile(pidFile, []byte(strconv.Itoa(c.SandboxPid())), 0644); err != nil {
 			return nil, fmt.Errorf("error writing PID file: %v", err)
@@ -586,9 +614,11 @@ func (c *Container) Processes() ([]*control.Process, error) {
 
 // Destroy stops all processes and frees all resources associated with the
 // container. It fails fast and is idempotent.
+// Destroy停止所有的进程并且释放所有和该容器相关的资源，该操作是幂等的
 func (c *Container) Destroy() error {
 	log.Debugf("Destroy container %q", c.ID)
 
+	// 停止所有的进程
 	if err := c.stop(); err != nil {
 		return fmt.Errorf("error stopping container: %v", err)
 	}
@@ -603,6 +633,8 @@ func (c *Container) Destroy() error {
 
 	// "If any poststop hook fails, the runtime MUST log a warning, but the
 	// remaining hooks and lifecycle continue as if the hook had succeeded" -OCI spec.
+	// OCI标准规定，如果任何的poststop hook失效了，运行时必须log一个warning，但是会继续执行
+	// 剩下的hooks和lifecycle，仿佛hook成功运行了
 	// Based on the OCI, "The post-stop hooks MUST be called after the container is
 	// deleted but before the delete operation returns"
 	// Run it here to:
@@ -618,6 +650,7 @@ func (c *Container) Destroy() error {
 }
 
 // save saves the container metadata to a file.
+// save将容器元数据写入一个文件中
 //
 // Precondition: container must be locked with container.lock().
 func (c *Container) save() error {
@@ -636,6 +669,8 @@ func (c *Container) save() error {
 // stop stops the container (for regular containers) or the sandbox (for
 // root containers), and waits for the container or sandbox and the gofer
 // to stop. If any of them doesn't stop before timeout, an error is returned.
+// stop停止container（对于普通的容器）或者sandbox（对于root容器），并且等待容器或者sandbox
+// 以及gopher停止，如果它们中的任何一个没有再timeout之前停止，则返回错误
 func (c *Container) stop() error {
 	if c.Sandbox != nil {
 		log.Debugf("Destroying container %q", c.ID)
@@ -684,6 +719,7 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *boot.Config, bund
 	}
 
 	// Start with the general config flags.
+	// 用通用的config flags启动
 	args := conf.ToFlags()
 	args = append(args, "gofer", "--bundle", bundleDir)
 	if conf.Overlay {
@@ -691,6 +727,7 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *boot.Config, bund
 	}
 
 	// Add root mount and then add any other additional mounts.
+	// 增加root mount以及任何其他额外的mounts
 	mountCount := 1
 
 	// Add additional mounts.
@@ -704,18 +741,23 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *boot.Config, bund
 
 	// nextFD is the next available file descriptor for the gofer process.
 	// It starts at 3 because 0-2 are used by stdin/stdout/stderr.
+	// nextFD是gofer进程下一个可得的文件描述符
+	// 它从3开始，因为0-2已经被stdin/stdou/stderr使用
 	nextFD := 3
 	for ; nextFD-3 < mountCount; nextFD++ {
 		fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
 		if err != nil {
 			return nil, err
 		}
+		// 对于每个mount，在sandbox有个文件描述符
 		sandEnds = append(sandEnds, os.NewFile(uintptr(fds[0]), "sandbox IO FD"))
 
+		// 对于每个mount，在gopher有个文件描述符
 		goferEnd := os.NewFile(uintptr(fds[1]), "gofer IO FD")
 		defer goferEnd.Close()
 		goferEnds = append(goferEnds, goferEnd)
 
+		// 并且将nextFD写入参数中
 		args = append(args, fmt.Sprintf("--io-fds=%d", nextFD))
 	}
 
@@ -724,10 +766,13 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *boot.Config, bund
 		return nil, err
 	}
 	cmd := exec.Command(binPath, args...)
+	// ExtraFiles指定了将由新的进程继承的额外的open files
 	cmd.ExtraFiles = goferEnds
 
 	// Enter new namespaces to isolate from the rest of the system. Don't unshare
 	// cgroup because gofer is added to a cgroup in the caller's namespace.
+	// 进入新的namespaces从而和系统的其他部分隔离，不要unshare cgroup，因为gofer
+	// 会加入到一个caller的namespace中
 	nss := []specs.LinuxNamespace{
 		{Type: specs.IPCNamespace},
 		{Type: specs.MountNamespace},
@@ -739,21 +784,26 @@ func (c *Container) createGoferProcess(spec *specs.Spec, conf *boot.Config, bund
 	// Setup any uid/gid mappings, and create or join the configured user
 	// namespace so the gofer's view of the filesystem aligns with the
 	// users in the sandbox.
+	// 设置uid/gid mappings，并且创建或者加入经过配置的user namespace，这样gofer对于
+	// 文件系统的视角就和sandbox中的用户是相同的了
 	nss = append(nss, specutils.FilterNS([]specs.LinuxNamespaceType{specs.UserNamespace}, spec)...)
 	specutils.SetUIDGIDMappings(cmd, spec)
 
 	// Start the gofer in the given namespace.
+	// 在给定的namespace内启动gofer
 	log.Debugf("Starting gofer: %s %v", binPath, args)
 	if err := specutils.StartInNS(cmd, nss); err != nil {
 		return nil, err
 	}
 	log.Infof("Gofer started, PID: %d", cmd.Process.Pid)
 	c.GoferPid = cmd.Process.Pid
+	// 将容器所有的mount在sandbox端的文件返回
 	return sandEnds, nil
 }
 
 // changeStatus transitions from one status to another ensuring that the
 // transition is valid.
+// changeStatus将一个状态转移到另一个状态，并且保证转移是合法的
 func (c *Container) changeStatus(s Status) {
 	switch s {
 	case Creating:

@@ -97,6 +97,7 @@ const (
 )
 
 // ControlSocketAddr generates an abstract unix socket name for the given ID.
+// ControlSocketAddr为给定ID生成一个抽象的unix socket name
 func ControlSocketAddr(id string) string {
 	return fmt.Sprintf("\x00runsc-sandbox.%s", id)
 }

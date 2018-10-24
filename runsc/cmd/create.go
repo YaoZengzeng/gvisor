@@ -40,6 +40,7 @@ type Create struct {
 	// file descriptor referencing the master end of the console's
 	// pseudoterminal.  This is ignored unless spec.Process.Terminal is
 	// true.
+	// 除非设置了spec.Process.Terminal，否则忽略该字段
 	consoleSocket string
 
 	// userLog is the path to send user-visible logs to. This log is different
@@ -98,6 +99,8 @@ func (c *Create) Execute(_ context.Context, f *flag.FlagSet, args ...interface{}
 	// Create the container. A new sandbox will be created for the
 	// container unless the metadata specifies that it should be run in an
 	// existing container.
+	// 创建一个新的容器，一般来说会创建一个新的sandbox，除非在元数据中指定该容器应该运行在
+	// 一个已经存在的容器中
 	if _, err := container.Create(id, spec, conf, bundleDir, c.consoleSocket, c.pidFile, c.userLog); err != nil {
 		Fatalf("error creating container: %v", err)
 	}

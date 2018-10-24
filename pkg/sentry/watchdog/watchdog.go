@@ -56,10 +56,12 @@ var stuckTasks = metric.MustCreateNewUint64Metric("/watchdog/stuck_tasks_detecte
 var stackDumpSameTaskPeriod = time.Minute
 
 // Action defines what action to take when a stuck task is detected.
+// Action定义了当检测到stuck task的时候应该采取的措施
 type Action int
 
 const (
 	// LogWarning logs warning message followed by stack trace.
+	// LogWarning会在stack trace打印warning message
 	LogWarning Action = iota
 	// Panic will do the same logging as LogWarning and panic().
 	Panic

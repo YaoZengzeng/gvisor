@@ -73,7 +73,11 @@ var optionsMap = map[string]mapping{
 // This allows the gofer serving the containers to be chroot under this
 // directory to create an extra layer to security in case the gofer gets
 // compromised.
+// setupFS在'spec.Root.Path'下创建一个容器目录，它允许gofer为chroot到该目录下的容器
+// 服务，为安全起见创建一个额外的layer，以防gofer
+// 创建容器的文件系统
 func setupFS(spec *specs.Spec, conf *boot.Config, bundleDir string) error {
+	// 对容器指定的mounts进行挂载
 	for _, m := range spec.Mounts {
 		if m.Type != "bind" || !specutils.IsSupportedDevMount(m) {
 			continue
@@ -89,12 +93,14 @@ func setupFS(spec *specs.Spec, conf *boot.Config, bundleDir string) error {
 		flags := optionsToFlags(m.Options)
 		flags |= syscall.MS_BIND
 		log.Infof("Mounting src: %q, dst: %q, flags: %#x", m.Source, dst, flags)
+		// 将mount的src挂载到dst
 		if err := specutils.Mount(m.Source, dst, m.Type, flags); err != nil {
 			return fmt.Errorf("failed to mount %v: %v", m, err)
 		}
 
 		// Make the mount a slave, so that for recursive bind mount, umount won't
 		// propagate to the source.
+		// 做一个slave mount，因此对于recursive bind mount，umount不会传播到source
 		flags = syscall.MS_SLAVE | syscall.MS_REC
 		if err := syscall.Mount("", dst, "", uintptr(flags), ""); err != nil {
 			return fmt.Errorf("failed to rslave mount dst: %q, flags: %#x, err: %v", dst, flags, err)
@@ -102,6 +108,7 @@ func setupFS(spec *specs.Spec, conf *boot.Config, bundleDir string) error {
 	}
 
 	// If root is read only, check if it needs to be remounted as readonly.
+	// 如果root是只读的，检查是否需要重新挂载为readonly
 	if spec.Root.Readonly {
 		isMountPoint, readonly, err := mountInfo(spec.Root.Path)
 		if err != nil {
@@ -132,12 +139,14 @@ func setupFS(spec *specs.Spec, conf *boot.Config, bundleDir string) error {
 
 // mountInfo returns whether the path is a mount point and whether the mount
 // that path belongs to is read-only.
+// mountInfo返回指定的路径是否为一个mount point并且该path属于的mount是否为只读
 func mountInfo(path string) (bool, bool, error) {
 	// Mounts are listed by their real paths.
 	realPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return false, false, err
 	}
+	// 获取mount信息
 	f, err := os.Open("/proc/mounts")
 	if err != nil {
 		return false, false, err
@@ -169,6 +178,8 @@ func mountInfo(path string) (bool, bool, error) {
 
 // destroyFS unmounts mounts done by runsc under `spec.Root.Path`. This
 // recovers the container rootfs into the original state.
+// destroyFS unmounts所有由runsc在`spec.Root.Path`下挂载的文件
+// 这会让容器的rootfs恢复到original state
 func destroyFS(spec *specs.Spec) error {
 	for _, m := range spec.Mounts {
 		if m.Type != "bind" || !specutils.IsSupportedDevMount(m) {

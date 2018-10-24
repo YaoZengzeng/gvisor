@@ -31,6 +31,7 @@ import (
 
 // Boot implements subcommands.Command for the "boot" command which starts a
 // new sandbox. It should not be called directly.
+// Boot实现了"boot"这个子命令，它会启动一个新的sandbox，它不应该被直接调用
 type Boot struct {
 	// bundleDir is the directory containing the OCI spec.
 	bundleDir string

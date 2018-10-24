@@ -40,16 +40,22 @@ import (
 )
 
 // Sandbox wraps a sandbox process.
+// Sandbox是对sandbox process的一个封装
 //
 // It is used to start/stop sandbox process (and associated processes like
 // gofers), as well as for running and manipulating containers inside a running
 // sandbox.
+// 它用于启动或者停止sandbox process（以及相关的进程，比如gophers），以及在一个正在运行的
+// sandbox里运行和操纵容器
 //
 // Note: Sandbox must be immutable because a copy of it is saved for each
 // container and changes would not be synchronized to all of them.
+// 需要注意的是Sandbox必须是一成不变的，因为它的一个拷贝已经为每个容器保存，任何的改变不能
+// 同步到它们中的所有
 type Sandbox struct {
 	// ID is the id of the sandbox (immutable). By convention, this is the same
 	// ID as the first container run in the sandbox.
+	// 通常和sandbox内第一个运行的容器的ID相同
 	ID string `json:"id"`
 
 	// Pid is the pid of the running sandbox (immutable). May be 0 is the sandbox
@@ -58,6 +64,7 @@ type Sandbox struct {
 
 	// Chroot is the path to the chroot directory that the sandbox process
 	// is running in.
+	// sandbox进程正在运行的chroot目录
 	Chroot string `json:"chroot"`
 
 	// Ccroup has the cgroup configuration for the sandbox.
@@ -66,8 +73,11 @@ type Sandbox struct {
 
 // Create creates the sandbox process. The caller must call Destroy() on the
 // sandbox.
+// Create创建sandbox进程，调用者必须负责调用sandbox的Destroy()
 func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSocket, userLog string, ioFiles []*os.File) (*Sandbox, error) {
 	s := &Sandbox{ID: id}
+	// 对于MakeCleanup内指定的函数，如果最后没有执行Release()
+	// 就会调用s.destroy()销毁
 	c := specutils.MakeCleanup(func() { s.destroy() })
 	defer c.Clean()
 
@@ -75,22 +85,27 @@ func Create(id string, spec *specs.Spec, conf *boot.Config, bundleDir, consoleSo
 		s.Cgroup = cg
 
 		// If there is cgroup config, install it before creating sandbox process.
+		// 如果存在cgroup config，则在创建sandbox process之前按照它们
+		// Install主要用于创建各类资源的cgroup路径并且对其进行设置
 		if err := s.Cgroup.Install(spec.Linux.Resources); err != nil {
 			return nil, fmt.Errorf("error configuring cgroup: %v", err)
 		}
 	}
 
 	// Create the sandbox process.
+	// 创建sandbox process
 	if err := s.createSandboxProcess(spec, conf, bundleDir, consoleSocket, userLog, ioFiles); err != nil {
 		return nil, err
 	}
 
 	// Wait for the control server to come up (or timeout).
+	// 等待control server启动或者超时
 	if err := s.waitForCreated(10 * time.Second); err != nil {
 		return nil, err
 	}
 
 	if s.Cgroup != nil {
+		// 将sandbox加入cgroup中
 		if err := s.Cgroup.Add(s.Pid); err != nil {
 			return nil, fmt.Errorf("error adding sandbox to cgroup: %v", err)
 		}
@@ -266,6 +281,7 @@ func (s *Sandbox) connError(err error) error {
 
 // createSandboxProcess starts the sandbox as a subprocess by running the "boot"
 // command, passing in the bundle dir.
+// createSandboxProcess启动sandbox作为运行"boot"命令的subprocess
 func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bundleDir, consoleSocket, userLog string, ioFiles []*os.File) error {
 	// nextFD is used to get unused FDs that we can pass to the sandbox.  It
 	// starts at 3 because 0, 1, and 2 are taken by stdin/out/err.
@@ -305,6 +321,7 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	// Add the "boot" command to the args.
 	//
 	// All flags after this must be for the boot command
+	// 将"boot"命令加入args
 	cmd.Args = append(cmd.Args, "boot", "--bundle="+bundleDir)
 
 	// Create a socket for the control server and donate it to the sandbox.
@@ -316,6 +333,7 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	}
 	controllerFile := os.NewFile(uintptr(sockFD), "control_server_socket")
 	defer controllerFile.Close()
+	// 将control server socket传递给子进程
 	cmd.ExtraFiles = append(cmd.ExtraFiles, controllerFile)
 	cmd.Args = append(cmd.Args, "--controller-fd="+strconv.Itoa(nextFD))
 	nextFD++
@@ -329,11 +347,13 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 		return fmt.Errorf("error opening spec file %q: %v", conf.SpecFile, err)
 	}
 	defer specFile.Close()
+	// 将specFile的文件描述符传递给子进程
 	cmd.ExtraFiles = append(cmd.ExtraFiles, specFile)
 	cmd.Args = append(cmd.Args, "--spec-fd="+strconv.Itoa(nextFD))
 	nextFD++
 
 	// If there is a gofer, sends all socket ends to the sandbox.
+	// 如果存在gofer，则将所有的socket发送给sandbox
 	for _, f := range ioFiles {
 		defer f.Close()
 		cmd.ExtraFiles = append(cmd.ExtraFiles, f)
@@ -342,6 +362,7 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	}
 
 	// If the platform needs a device FD we must pass it in.
+	// 如果platform需要device FD，则我们必须传递给它
 	if deviceFile, err := deviceFileForPlatform(conf.Platform); err != nil {
 		return err
 	} else if deviceFile != nil {
@@ -353,11 +374,14 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 
 	// If the console control socket file is provided, then create a new
 	// pty master/slave pair and set the TTY on the sandbox process.
+	// 如果提供了console control socket file，则创建一个新的pty master/slave对
+	// 之后将TTY设置sandbox process
 	if consoleSocket != "" {
 		cmd.Args = append(cmd.Args, "--console=true")
 
 		// console.NewWithSocket will send the master on the given
 		// socket, and return the slave.
+		// console.NewWithSocket会将master发送到指定的socket，并且返回slave
 		tty, err := console.NewWithSocket(consoleSocket)
 		if err != nil {
 			return fmt.Errorf("error setting up console with socket %q: %v", consoleSocket, err)
@@ -369,6 +393,8 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 		// never calls `runsc start`). Instead we set stdio to the
 		// console TTY, but note that this is distinct from the
 		// container stdio, which is passed via the flags below.
+		// 我们将stdio设置为console TTY，但是需要注意的是，这和容器的stdio不同
+		// 容器的stdio会通过下面的flag进行传递
 		cmd.Stdin = tty
 		cmd.Stdout = tty
 		cmd.Stderr = tty
@@ -412,6 +438,8 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	// are virtualized inside the sandbox. Be paranoid and run inside an empty
 	// namespace for these. Don't unshare cgroup because sandbox is added to a
 	// cgroup in the caller's namespace.
+	// nss是一系列在启动sandbox process之前要加入或创建的namespaces，将不会使用host的
+	// Mount, IPC和UTS namespaces，因为它们在sandbox中会被虚拟化
 	log.Infof("Sandbox will be started in new mount, IPC and UTS namespaces")
 	nss := []specs.LinuxNamespace{
 		{Type: specs.IPCNamespace},
@@ -432,6 +460,7 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	// directly to the host network, which may have been configured in the
 	// namespace.
 	if ns, ok := specutils.GetNS(specs.NetworkNamespace, spec); ok && conf.Network != boot.NetworkNone {
+		// Sandbox会在容器的network namespace中启动
 		log.Infof("Sandbox will be started in the container's network namespace: %+v", ns)
 		nss = append(nss, ns)
 	} else {
@@ -442,6 +471,8 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 	// User namespace depends on the network type. Host network requires to run
 	// inside the user namespace specified in the spec or the current namespace
 	// if none is configured.
+	// User namespace依赖网络类型，Host network需要运行在spec中指定的user namespace
+	// 或者是当前的namespace，如果没有配置的话则用当前的namespace
 	if conf.Network == boot.NetworkHost {
 		if userns, ok := specutils.GetNS(specs.UserNamespace, spec); ok {
 			log.Infof("Sandbox will be started in container's user namespace: %+v", userns)
@@ -558,6 +589,7 @@ func (s *Sandbox) createSandboxProcess(spec *specs.Spec, conf *boot.Config, bund
 // waitForCreated waits for the sandbox subprocess control server to be
 // running and for the loader to have been created, at which point the sandbox
 // is in Created state.
+// 
 func (s *Sandbox) waitForCreated(timeout time.Duration) error {
 	log.Debugf("Waiting for sandbox %q creation", s.ID)
 
@@ -777,6 +809,7 @@ func (s *Sandbox) Resume(cid string) error {
 func (s *Sandbox) IsRunning() bool {
 	if s.Pid != 0 {
 		// Send a signal 0 to the sandbox process.
+		// 给sandbox process发送signal 9，如果返回的错误为nil，则说明进程存在
 		if err := syscall.Kill(s.Pid, 0); err == nil {
 			// Succeeded, process is running.
 			return true
@@ -849,6 +882,8 @@ func (s *Sandbox) AddGoferToCgroup(pid int) error {
 
 // deviceFileForPlatform opens the device file for the given platform. If the
 // platform does not need a device file, then nil is returned.
+// deviceFileForPlatform为给定的platform打开device file
+// 如果platform不需要device file，就返回nil
 func deviceFileForPlatform(p boot.PlatformType) (*os.File, error) {
 	var (
 		f   *os.File

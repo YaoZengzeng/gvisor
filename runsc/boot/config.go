@@ -62,11 +62,14 @@ type FileAccessType int
 const (
 	// FileAccessShared sends IO requests to a Gofer process that validates the
 	// requests and forwards them to the host.
+	// FileAccessShared将IO请求发送给一个Gofer进程，它会检测请求并且将它转发到host
 	FileAccessShared FileAccessType = iota
 
 	// FileAccessExclusive is the same as FileAccessShared, but enables
 	// extra caching for improved performance. It should only be used if
 	// the sandbox has exclusive access to the filesystem.
+	// FileAccessExclusive和FileAccessShared相同，但是有额外的缓存用于提升性能
+	// 这只会在sandbox对于文件系统能够独占访问的时候使用
 	FileAccessExclusive
 )
 
@@ -98,9 +101,11 @@ type NetworkType int
 
 const (
 	// NetworkSandbox uses internal network stack, isolated from the host.
+	// NetworkSandbox使用sandbox内部的network stack，并且和host隔离
 	NetworkSandbox NetworkType = iota
 
 	// NetworkHost redirects network related syscalls to the host network.
+	// NetworkHost将network相关的系统调用转发到host network
 	NetworkHost
 
 	// NetworkNone sets up just loopback using netstack.
@@ -147,6 +152,7 @@ func MakeWatchdogAction(s string) (watchdog.Action, error) {
 }
 
 // Config holds configuration that is not part of the runtime spec.
+// Config保存了那些不属于runtime spec的配置
 type Config struct {
 	// RootDir is the runtime root directory.
 	RootDir string
